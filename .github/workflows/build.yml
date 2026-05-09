@@ -3,7 +3,7 @@ name: Build & Release Desktop App
 on:
   push:
     tags:
-      - "v*"          # Startet beim Erstellen eines Tags wie v1.0.0, v1.2.3 ...
+      - "v*"
 
 jobs:
   # ── Windows (.exe) ────────────────────────────────────────────────
@@ -16,14 +16,28 @@ jobs:
       - name: Node.js einrichten
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
 
       - name: Abhängigkeiten installieren
         run: npm ci
 
       - name: Web-App exportieren (Expo)
+        env:
+          CI: "false"
+          NODE_ENV: production
         run: npx expo export --platform web
+
+      - name: Prüfen ob dist/ existiert
+        run: |
+          if (Test-Path "dist") {
+            Write-Host "dist/ gefunden"
+            Get-ChildItem dist | Select-Object -First 10
+          } else {
+            Write-Error "dist/ nicht gefunden!"
+            exit 1
+          }
+        shell: pwsh
 
       - name: Windows .exe bauen
         env:
@@ -40,14 +54,20 @@ jobs:
       - name: Node.js einrichten
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
 
       - name: Abhängigkeiten installieren
         run: npm ci
 
       - name: Web-App exportieren (Expo)
+        env:
+          CI: "false"
+          NODE_ENV: production
         run: npx expo export --platform web
+
+      - name: Prüfen ob dist/ existiert
+        run: ls -la dist/ || (echo "dist/ nicht gefunden!" && exit 1)
 
       - name: macOS .dmg bauen
         env:
