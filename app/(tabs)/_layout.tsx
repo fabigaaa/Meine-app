@@ -23,7 +23,8 @@ interface TabConfig {
 }
 
 const TABS: TabConfig[] = [
-  { name: 'index',       title: 'Kalender',      shortTitle: 'Kalender',  icon: 'calendar-outline',            iconFocused: 'calendar',             href: '/(tabs)' },
+  { name: 'index',       title: 'Home',          shortTitle: 'Home',      icon: 'home-outline',                iconFocused: 'home',                 href: '/(tabs)' },
+  { name: 'calendar',    title: 'Kalender',      shortTitle: 'Kalender',  icon: 'calendar-outline',            iconFocused: 'calendar',             href: '/(tabs)/calendar' },
   { name: 'todos',       title: 'To-Do',         shortTitle: 'To-Do',     icon: 'checkbox-outline',            iconFocused: 'checkbox',             href: '/(tabs)/todos' },
   { name: 'notes',       title: 'Notizen',       shortTitle: 'Notizen',   icon: 'document-text-outline',       iconFocused: 'document-text',        href: '/(tabs)/notes' },
   { name: 'spreadsheet', title: 'Tabellen',      shortTitle: 'Tabellen',  icon: 'grid-outline',                iconFocused: 'grid',                 href: '/(tabs)/spreadsheet' },
