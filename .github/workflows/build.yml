@@ -1,0 +1,55 @@
+name: Build & Release Desktop App
+
+on:
+  push:
+    tags:
+      - "v*"          # Startet beim Erstellen eines Tags wie v1.0.0, v1.2.3 ...
+
+jobs:
+  # ── Windows (.exe) ────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Web-App exportieren (Expo)
+        run: npx expo export --platform web
+
+      - name: Windows .exe bauen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --config electron-builder.json --publish always
+
+  # ── macOS (.dmg) ─────────────────────────────────────────────────
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Web-App exportieren (Expo)
+        run: npx expo export --platform web
+
+      - name: macOS .dmg bauen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --config electron-builder.json --publish always

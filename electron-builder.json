@@ -1,0 +1,54 @@
+{
+  "appId": "com.yourname.meineapp",
+  "productName": "Meine App",
+  "copyright": "Copyright © 2025",
+  "directories": {
+    "output": "release",
+    "buildResources": "assets"
+  },
+  "files": [
+    "electron/**/*",
+    "dist/**/*",
+    "assets/icon.png",
+    "assets/icon.icns",
+    "assets/icon.ico"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "assets/icon.png"
+  },
+  "mac": {
+    "target": [
+      { "target": "dmg", "arch": ["x64", "arm64"] }
+    ],
+    "icon": "assets/icon.png",
+    "category": "public.app-category.productivity"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "installerLanguages": ["de_DE", "en_US"],
+    "language": "1031",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Meine App"
+  },
+  "publish": {
+    "provider": "github",
+    "releaseType": "release"
+  }
+}
