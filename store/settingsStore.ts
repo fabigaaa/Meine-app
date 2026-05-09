@@ -9,15 +9,19 @@ export interface AppSettings {
   fontSize: 'small' | 'medium' | 'large';
 
   // Kalender
-  weekStartsOn: 0 | 1;           // 0 = Sonntag, 1 = Montag
-  defaultEventDuration: number;  // Minuten
-  defaultReminderMinutes: number; // 0 = keine
+  weekStartsOn: 0 | 1;
+  defaultEventDuration: number;
+  defaultReminderMinutes: number;
 
   // Benachrichtigungen
   notificationsEnabled: boolean;
   dailySummaryEnabled: boolean;
 
-  // KI-Assistent
+  // KI-Assistent (Groq)
+  groqApiKey: string;
+  groqModel: string;
+
+  // Legacy Anthropic (nicht mehr aktiv genutzt)
   anthropicApiKey: string;
   aiModel: string;
 
@@ -26,13 +30,15 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  accentColor: '#4F46E5',
+  accentColor: '#F97316',
   fontSize: 'medium',
   weekStartsOn: 1,
   defaultEventDuration: 60,
   defaultReminderMinutes: 15,
   notificationsEnabled: true,
   dailySummaryEnabled: false,
+  groqApiKey: '',
+  groqModel: 'llama-3.3-70b-versatile',
   anthropicApiKey: '',
   aiModel: 'claude-sonnet-4-6',
   hideCompletedTodos: false,
@@ -74,6 +80,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       defaultReminderMinutes: s.defaultReminderMinutes,
       notificationsEnabled: s.notificationsEnabled,
       dailySummaryEnabled: s.dailySummaryEnabled,
+      groqApiKey: s.groqApiKey,
+      groqModel: s.groqModel,
       anthropicApiKey: s.anthropicApiKey,
       aiModel: s.aiModel,
       hideCompletedTodos: s.hideCompletedTodos,

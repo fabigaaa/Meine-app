@@ -138,7 +138,7 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    setApiKeyInput(settings.anthropicApiKey);
+    setApiKeyInput(settings.groqApiKey ?? '');
   }, [settings.isLoaded]);
 
   const handleUpdate = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
@@ -146,8 +146,8 @@ export default function SettingsScreen() {
   };
 
   const handleApiKeySave = () => {
-    handleUpdate('anthropicApiKey', apiKeyInput.trim());
-    Alert.alert('Gespeichert', 'API-Schlüssel wurde gespeichert.');
+    handleUpdate('groqApiKey', apiKeyInput.trim());
+    Alert.alert('Gespeichert', 'Groq API-Schlüssel wurde gespeichert.');
   };
 
   const handleExport = async () => {
@@ -298,14 +298,20 @@ export default function SettingsScreen() {
         <SectionHeader title="KI-ASSISTENT" />
         <SettingsCard>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>API-Schlüssel</Text>
+            <Text style={styles.rowLabel}>Groq API-Schlüssel</Text>
+          </View>
+          <View style={styles.apiKeyHint}>
+            <Ionicons name="information-circle-outline" size={14} color={Colors.primary} />
+            <Text style={[styles.apiKeyHintText, { color: Colors.primary }]}>
+              Kostenlos unter console.groq.com — kein Kreditkarte nötig
+            </Text>
           </View>
           <View style={styles.apiKeyRow}>
             <TextInput
               style={styles.apiKeyInput}
               value={apiKeyInput}
               onChangeText={setApiKeyInput}
-              placeholder="sk-ant-api03-..."
+              placeholder="gsk_..."
               placeholderTextColor={Colors.text.disabled}
               secureTextEntry={!showApiKey}
               autoCapitalize="none"
@@ -323,25 +329,25 @@ export default function SettingsScreen() {
             <Text style={styles.saveKeyText}>Schlüssel speichern</Text>
           </Pressable>
           <View style={styles.apiKeyHint}>
-            <Ionicons name="information-circle-outline" size={14} color={Colors.text.disabled} />
+            <Ionicons name="lock-closed-outline" size={14} color={Colors.text.disabled} />
             <Text style={styles.apiKeyHintText}>
-              Schlüssel werden lokal gespeichert und niemals übertragen. Erhältlich auf console.anthropic.com
+              Schlüssel werden nur lokal auf deinem Gerät gespeichert.
             </Text>
           </View>
           <Divider />
           <Row label="KI-Modell" />
           <View style={styles.modelRow}>
             {[
-              { value: 'claude-haiku-4-5-20251001', label: 'Haiku', desc: 'Schnell & günstig' },
-              { value: 'claude-sonnet-4-6', label: 'Sonnet', desc: 'Ausgewogen' },
-              { value: 'claude-opus-4-7', label: 'Opus', desc: 'Leistungsstark' },
+              { value: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B',  desc: 'Schnell & leicht' },
+              { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', desc: 'Empfohlen' },
+              { value: 'mixtral-8x7b-32768',       label: 'Mixtral 8x7B',  desc: 'Langer Kontext' },
             ].map((m) => (
               <Pressable
                 key={m.value}
-                style={[styles.modelCard, settings.aiModel === m.value && styles.modelCardActive]}
-                onPress={() => handleUpdate('aiModel', m.value)}
+                style={[styles.modelCard, settings.groqModel === m.value && styles.modelCardActive]}
+                onPress={() => handleUpdate('groqModel', m.value)}
               >
-                <Text style={[styles.modelLabel, settings.aiModel === m.value && styles.modelLabelActive]}>
+                <Text style={[styles.modelLabel, settings.groqModel === m.value && styles.modelLabelActive]}>
                   {m.label}
                 </Text>
                 <Text style={styles.modelDesc}>{m.desc}</Text>
@@ -381,7 +387,7 @@ export default function SettingsScreen() {
           </Row>
           <Divider />
           <Row label="KI-Engine">
-            <Text style={styles.valueText}>Anthropic Claude</Text>
+            <Text style={styles.valueText}>Groq · Llama 3.3</Text>
           </Row>
           <Divider />
           <Row

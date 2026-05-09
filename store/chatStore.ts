@@ -1,10 +1,42 @@
 import { create } from 'zustand';
-import Anthropic from '@anthropic-ai/sdk';
-import { ChatMessage, SYSTEM_PROMPT } from '@/types/chat';
+import { format } from 'date-fns';
+import { ChatMessage, ChatAction, buildSystemPrompt } from '@/types/chat';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useCalendarStore } from '@/store/calendarStore';
+import { useNoteStore } from '@/store/noteStore';
+import { CalendarEvent } from '@/types/calendar';
+import { Note } from '@/types/note';
 
-// Fallback: API-Key aus der .env.local Datei
-const ENV_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+// Groq API — kostenlos unter console.groq.com
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+
+// ─── Hilfsfunktionen ──────────────────────────────────────────────────
+
+function makeId(): string {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/** Parst <ACTION>...</ACTION>-Blöcke aus einer KI-Antwort */
+function parseActions(text: string): { cleanText: string; actions: ChatAction[] } {
+  const actions: ChatAction[] = [];
+  const cleanText = text
+    .replace(/<ACTION>([\s\S]*?)<\/ACTION>/g, (_, json) => {
+      try {
+        const action = JSON.parse(json.trim());
+        if (action.type === 'ADD_EVENT' || action.type === 'ADD_NOTE') {
+          actions.push(action);
+        }
+      } catch {
+        // ungültiges JSON ignorieren
+      }
+      return '';
+    })
+    .trim();
+  return { cleanText, actions };
+}
+
+// ─── Store-Interface ─────────────────────────────────────────────────
 
 interface ChatState {
   messages: ChatMessage[];
@@ -15,10 +47,8 @@ interface ChatState {
   setInput: (text: string) => void;
   sendMessage: () => Promise<void>;
   clearConversation: () => void;
-}
-
-function makeId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  executeAction: (messageId: string, action: ChatAction) => Promise<void>;
+  dismissAction: (messageId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -28,27 +58,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
 
   setInput: (text) => set({ inputText: text }),
-
   clearConversation: () => set({ messages: [], error: null }),
+
+  // ── Nachricht abschicken ────────────────────────────────────────────
 
   sendMessage: async () => {
     const { inputText, messages } = get();
     const text = inputText.trim();
     if (!text || get().isLoading) return;
 
-    // API-Key: zuerst aus Einstellungen, dann aus .env.local
-    const settingsKey = useSettingsStore.getState().anthropicApiKey;
-    const API_KEY = (settingsKey && settingsKey !== 'dein_api_key_hier')
-      ? settingsKey
-      : ENV_API_KEY;
-    const AI_MODEL = useSettingsStore.getState().aiModel || 'claude-sonnet-4-6';
+    // API-Key aus Einstellungen oder Env
+    const settings = useSettingsStore.getState();
+    const apiKey = settings.groqApiKey?.trim() || process.env.EXPO_PUBLIC_GROQ_API_KEY || '';
+    const model = settings.groqModel || DEFAULT_MODEL;
 
-    if (!API_KEY || API_KEY === 'dein_api_key_hier') {
-      set({ error: 'Kein API-Key konfiguriert. Trage deinen Anthropic-Key in den Einstellungen ein.' });
+    if (!apiKey) {
+      set({
+        error: 'Kein Groq API-Key konfiguriert. Trage deinen kostenlosen Key in den Einstellungen ein.',
+      });
       return;
     }
 
-    // Nutzer-Nachricht sofort anzeigen
+    const today = format(new Date(), 'yyyy-MM-dd');
+
     const userMessage: ChatMessage = {
       id: makeId(),
       role: 'user',
@@ -56,7 +88,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    // Platzhalter für Claude-Antwort (wird per Streaming befüllt)
     const assistantId = makeId();
     const assistantPlaceholder: ChatMessage = {
       id: assistantId,
@@ -74,66 +105,151 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      const client = new Anthropic({
-        apiKey: API_KEY,
-        dangerouslyAllowBrowser: true, // Für Expo Web (Browser-Umgebung)
+      // Nachrichtenhistorie aufbauen
+      const apiMessages = [
+        { role: 'system', content: buildSystemPrompt(today) },
+        ...[...messages, userMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      ];
+
+      const response = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: apiMessages,
+          stream: true,
+          max_tokens: 1500,
+          temperature: 0.7,
+        }),
       });
 
-      // Nachrichtenhistorie für die API aufbauen
-      const apiMessages = [...messages, userMessage].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Groq API Fehler ${response.status}: ${err.slice(0, 200)}`);
+      }
 
-      // Streaming-Anfrage an Claude
-      const stream = await client.messages.stream({
-        model: AI_MODEL,
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        messages: apiMessages,
-      });
-
+      // ── SSE-Stream lesen ────────────────────────────────────────────
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
       let accumulated = '';
 
-      for await (const chunk of stream) {
-        if (
-          chunk.type === 'content_block_delta' &&
-          chunk.delta.type === 'text_delta'
-        ) {
-          accumulated += chunk.delta.text;
+      if (!reader) throw new Error('Kein Response-Body');
 
-          // Nachricht in Echtzeit aktualisieren
-          set((s) => ({
-            messages: s.messages.map((m) =>
-              m.id === assistantId
-                ? { ...m, content: accumulated, isStreaming: true }
-                : m
-            ),
-          }));
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter((l) => l.startsWith('data: '));
+
+        for (const line of lines) {
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(data);
+            const delta: string = parsed.choices?.[0]?.delta?.content ?? '';
+            if (delta) {
+              accumulated += delta;
+              set((s) => ({
+                messages: s.messages.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: accumulated, isStreaming: true }
+                    : m
+                ),
+              }));
+            }
+          } catch {
+            // Ungültiges JSON-Chunk überspringen
+          }
         }
       }
 
-      // Streaming beendet: isStreaming-Flag entfernen
+      // ── Aktionen aus der fertigen Antwort parsen ──────────────────
+      const { cleanText, actions } = parseActions(accumulated);
+
       set((s) => ({
         messages: s.messages.map((m) =>
-          m.id === assistantId ? { ...m, isStreaming: false } : m
+          m.id === assistantId
+            ? {
+                ...m,
+                content: cleanText || accumulated,
+                isStreaming: false,
+                actions: actions.length > 0 ? actions : undefined,
+                actionsExecuted: false,
+              }
+            : m
         ),
         isLoading: false,
       }));
     } catch (err) {
-      const errorText =
-        err instanceof Error ? err.message : 'Unbekannter Fehler aufgetreten.';
-
-      // Platzhalter durch Fehlermeldung ersetzen
+      const msg = err instanceof Error ? err.message : 'Unbekannter Fehler';
       set((s) => ({
         messages: s.messages.map((m) =>
           m.id === assistantId
-            ? { ...m, content: `Fehler: ${errorText}`, isStreaming: false }
+            ? { ...m, content: `❌ Fehler: ${msg}`, isStreaming: false }
             : m
         ),
         isLoading: false,
-        error: errorText,
+        error: msg,
       }));
     }
+  },
+
+  // ── Aktion ausführen (Nutzer bestätigt) ────────────────────────────
+
+  executeAction: async (messageId, action) => {
+    try {
+      if (action.type === 'ADD_EVENT') {
+        const now = new Date().toISOString();
+        const event: CalendarEvent = {
+          id: makeId(),
+          title: action.title,
+          date: action.date,
+          startTime: action.startTime,
+          endTime: action.endTime,
+          description: action.description,
+          category: (action.category as CalendarEvent['category']) ?? 'other',
+          isAllDay: !action.startTime,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await useCalendarStore.getState().createEvent(event);
+      } else if (action.type === 'ADD_NOTE') {
+        const now = new Date().toISOString();
+        const note: Note = {
+          id: makeId(),
+          title: action.title,
+          content: action.content,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await useNoteStore.getState().createNote(note);
+      }
+
+      // Aktion als ausgeführt markieren
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === messageId ? { ...m, actionsExecuted: true } : m
+        ),
+      }));
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Aktion fehlgeschlagen' });
+    }
+  },
+
+  // ── Aktion ablehnen ────────────────────────────────────────────────
+
+  dismissAction: (messageId) => {
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.id === messageId ? { ...m, actionsExecuted: true } : m
+      ),
+    }));
   },
 }));

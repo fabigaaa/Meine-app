@@ -1,10 +1,11 @@
-import { View, Text, Pressable, FlatList, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Ionicons } from '@expo/vector-icons';
 import { CalendarEvent } from '@/types/calendar';
 import { TodoItem } from '@/types/todo';
 import { Colors } from '@/constants/Colors';
+import { getHolidayForDate } from '@/utils/austrianHolidays';
 
 interface DayPanelProps {
   selectedDate: string;
@@ -105,6 +106,7 @@ export function DayPanel({
   onTodoPress,
 }: DayPanelProps) {
   const formattedDate = format(parseISO(selectedDate), 'EEEE, d. MMMM', { locale: de });
+  const holiday = getHolidayForDate(selectedDate);
 
   // Sortierte Termine (ganztägig zuerst, dann nach Uhrzeit)
   const sortedEvents = [...events].sort((a, b) => {
@@ -163,9 +165,19 @@ export function DayPanel({
 
   return (
     <View style={styles.container}>
-      {/* Header: Datum + Hinzufügen-Button */}
+      {/* Header: Datum + Feiertag-Badge + Hinzufügen-Button */}
       <View style={styles.header}>
-        <Text style={styles.dateTitle}>{formattedDate}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.dateTitle}>{formattedDate}</Text>
+          {holiday && (
+            <View style={[styles.holidayBadge, { backgroundColor: holiday.isPublic ? '#EF444422' : '#F9731622' }]}>
+              <Text style={styles.holidayEmoji}>{holiday.emoji}</Text>
+              <Text style={[styles.holidayName, { color: holiday.isPublic ? '#EF4444' : Colors.primary }]}>
+                {holiday.name}
+              </Text>
+            </View>
+          )}
+        </View>
         <Pressable style={styles.addBtn} onPress={onAddPress} accessibilityLabel="Hinzufügen">
           <Ionicons name="add" size={22} color={Colors.text.inverse} />
         </Pressable>
@@ -195,11 +207,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    gap: 8,
   },
-  dateTitle: { fontSize: 16, fontWeight: '700', color: Colors.text.primary },
+  headerLeft: { flex: 1, gap: 4 },
+  dateTitle: { fontSize: 15, fontWeight: '700', color: Colors.text.primary },
+  holidayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  holidayEmoji: { fontSize: 12 },
+  holidayName: { fontSize: 11, fontWeight: '600' },
   addBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 18,

@@ -22,6 +22,7 @@ export type MarkedDates = {
   [date: string]: {
     marked?: boolean;
     dotColor?: string;
+    dots?: Array<{ color: string; selectedColor?: string }>;
     selected?: boolean;
     selectedColor?: string;
   };
