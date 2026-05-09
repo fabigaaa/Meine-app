@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+# Nötig damit der GITHUB_TOKEN Releases erstellen und Dateien hochladen darf
+permissions:
+  contents: write
+
 jobs:
   # ── Windows (.exe) ────────────────────────────────────────────────
   build-windows:
@@ -27,17 +31,6 @@ jobs:
           CI: "false"
           NODE_ENV: production
         run: npx expo export --platform web
-
-      - name: Prüfen ob dist/ existiert
-        run: |
-          if (Test-Path "dist") {
-            Write-Host "dist/ gefunden"
-            Get-ChildItem dist | Select-Object -First 10
-          } else {
-            Write-Error "dist/ nicht gefunden!"
-            exit 1
-          }
-        shell: pwsh
 
       - name: Windows .exe bauen
         env:
@@ -65,9 +58,6 @@ jobs:
           CI: "false"
           NODE_ENV: production
         run: npx expo export --platform web
-
-      - name: Prüfen ob dist/ existiert
-        run: ls -la dist/ || (echo "dist/ nicht gefunden!" && exit 1)
 
       - name: macOS .dmg bauen
         env:
